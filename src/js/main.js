@@ -11,6 +11,8 @@ let liftsAtFloor = new Map();
 const upButtonChevronSrc = "assets/chevron-up.svg";
 const downButtonChevronSrc = "assets/chevron-down.svg";
 
+const pendingRequests = [];
+
 startButton.addEventListener("click", () => {
   numberOfLifts = parseInt(document.getElementById("lifts").value);
   numberOfFloors = parseInt(document.getElementById("floors").value);
@@ -20,6 +22,14 @@ startButton.addEventListener("click", () => {
   }
   if (numberOfLifts < 1) {
     alert("Please enter a valid number of lifts");
+    return;
+  }
+  if (numberOfLifts > 10) {
+    alert("Only 10 lifts are supported");
+    return;
+  }
+  if (numberOfFloors > 50) {
+    alert("Only 50 floors are supported");
     return;
   }
   document.getElementById("config").classList.add("hidden");
@@ -72,8 +82,8 @@ const getLiftButtons = () => {
   const downButton = document.createElement("button");
   downButton.classList.add("down", "text-blue-500", "hover:text-blue-600");
   downButton.innerHTML = `<img src="${downButtonChevronSrc}" />`;
-  upButton.addEventListener("click", handleLiftRequest);
-  downButton.addEventListener("click", handleLiftRequest);
+  upButton.addEventListener("click", handleButtonPress);
+  downButton.addEventListener("click", handleButtonPress);
 
   return { upButton, downButton };
 };
@@ -87,23 +97,44 @@ const initializeLifts = (totalLifts) => {
 };
 
 const createLift = (liftNumber) => {
-  const lift = document.createElement("div");
+  const lift = document.createElement("section");
   lift.id = `lift-${liftNumber}`;
-  lift.classList.add("lift", "border-2", "border-slate-300", "h-[100px]", "w-[30px]", "bg-slate-300", "ml-4");
-  const newLift = new Lift(liftNumber, 1, "idle", lift);
+  lift.classList.add(
+    "lift",
+    "border-2",
+    "border-slate-300",
+    "h-[100px]",
+    "w-[60px]",
+    "bg-slate-100",
+    "ml-4",
+    "flex",
+    "justify-between"
+  );
+  lift.innerHTML = `
+    <div class="left-door w-[30px] bg-slate-300"></div>
+    <div class="right-door w-[30px] bg-slate-300"></div>
+  `;
+  const newLift = new Lift(liftNumber, 1, "idle");
   liftsAtFloor.get(1).push(newLift);
   return lift;
 };
 
-const handleLiftRequest = (event) => {
+const handleButtonPress = (event) => {
   const calledFloorId = parseInt(event.target.parentElement.parentElement.parentElement.id.split("-")[1]);
 
   if (!calledFloorId) return;
+  handleLiftCall(calledFloorId);
+};
+
+const handleLiftCall = (calledFloorId) => {
   if (liftsAtFloor.get(calledFloorId) && liftsAtFloor.get(calledFloorId).length > 0) {
     return;
   }
   const availableLift = getAvailableLift(calledFloorId);
-  if (!availableLift) return;
+  if (!availableLift) {
+    pendingRequests.push(calledFloorId);
+    return;
+  }
   liftsAtFloor.get(availableLift.floor).splice(liftsAtFloor.get(availableLift.floor).indexOf(availableLift), 1);
   liftsAtFloor.get(calledFloorId).push(availableLift);
   const liftElement = document.getElementById(`lift-${availableLift.id}`);
@@ -112,9 +143,29 @@ const handleLiftRequest = (event) => {
   availableLift.status = "moving";
   liftElement.style.transform = `translateY(-${(calledFloorId - 1) * 100}px)`;
   setTimeout(() => {
-    availableLift.floor = calledFloorId;
-    availableLift.status = "idle";
+    openAndCloseDoors(availableLift).then(() => {
+      setTimeout(() => {
+        availableLift.floor = calledFloorId;
+        availableLift.status = "idle";
+        handlePendingRequests();
+      }, 2000);
+    });
   }, diff * 200);
+};
+
+const openAndCloseDoors = (lift) => {
+  const liftElement = document.getElementById(`lift-${lift.id}`);
+  const leftDoor = liftElement.querySelector(".left-door");
+  const rightDoor = liftElement.querySelector(".right-door");
+  leftDoor.classList.add("open");
+  rightDoor.classList.add("open");
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      leftDoor.classList.remove("open");
+      rightDoor.classList.remove("open");
+      resolve();
+    }, 3000);
+  });
 };
 
 const getAvailableLift = (calledFloorId) => {
@@ -138,4 +189,10 @@ const getAvailableLift = (calledFloorId) => {
     up++;
     down--;
   }
+};
+
+const handlePendingRequests = () => {
+  if (pendingRequests.length === 0) return;
+  const calledFloorId = pendingRequests.shift();
+  handleLiftCall(calledFloorId);
 };

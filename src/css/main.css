@@ -1,0 +1,9 @@
+.lift .left-door,
+.lift .right-door {
+  transition: all 2s ease-in-out;
+}
+
+.lift .left-door.open,
+.lift .right-door.open {
+  width: 0px;
+}
